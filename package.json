@@ -1,0 +1,17 @@
+{
+  "name": "pyjava-keijiban",
+  "version": "1.0.0",
+  "description": "PyJava_0515 掲示板アプリケーション",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step required'",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@vercel/kv": "^1.0.0"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.0.0"
+  }
+}
