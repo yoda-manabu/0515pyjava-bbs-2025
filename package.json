@@ -2,9 +2,7 @@
   "name": "pyjava-keijiban",
   "version": "1.0.0",
   "description": "PyJava_0515 掲示板アプリケーション",
-  "scripts": {
-    "build": "echo 'Static site - no build needed'"
-  },
+  "main": "index.html",
   "dependencies": {
     "@vercel/kv": "^1.0.1"
   },
