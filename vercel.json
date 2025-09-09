@@ -1,22 +1,10 @@
 {
-  "rewrites": [
-    {
-      "source": "/api/threads",
-      "destination": "/api/threads"
+  "functions": {
+    "api/threads.js": {
+      "runtime": "@vercel/node@3.0.23"
     },
-    {
-      "source": "/api/replies",
-      "destination": "/api/replies"
+    "api/replies.js": {
+      "runtime": "@vercel/node@3.0.23"
     }
-  ],
-  "builds": [
-    {
-      "src": "*.html",
-      "use": "@vercel/static-build"
-    },
-    {
-      "src": "/api/*.js",
-      "use": "@vercel/node"
-    }
-  ]
+  }
 }
