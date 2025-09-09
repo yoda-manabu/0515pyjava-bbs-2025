@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'No build step required' --no-build"
+    "build": "echo 'No build step required' && exit 0"
   },
   "dependencies": {
     "@vercel/kv": "^1.0.0"
