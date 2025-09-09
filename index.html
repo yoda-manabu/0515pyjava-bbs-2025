@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PyJava_0515 掲示板</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+body { font-family: "Press Start 2P", monospace; background-color: #111; color: #fefefe; margin:0; padding:0; }
+header { background:#222; padding:14px; text-align:center; font-size:18px; color:#0ff; text-shadow:2px 2px #08f; box-shadow:0 3px 8px rgba(0,255,255,0.4); }
+.container { max-width:700px; margin:15px auto; padding:15px; background:#1a1a1a; border:3px solid #0ff; border-radius:10px; box-shadow:0 0 10px #0ff; }
+h3 { font-size:14px; color:#ff0; text-shadow:1px 1px #f00; margin-bottom:10px; }
+input, textarea, select, button { width:100%; padding:10px; margin-bottom:8px; background:#222; color:#0ff; border:2px solid #0ff; border-radius:5px; font-family:"Press Start 2P", monospace; font-size:12px; resize:vertical; box-sizing:border-box; }
+textarea { min-height:70px; }
+button { background:#0ff; color:#000; cursor:pointer; box-shadow:2px 2px #08f; transition:all 0.2s; }
+button:hover { background:#ff0; box-shadow:2px 2px #f80; }
+button:disabled { background:#666; color:#333; cursor: not-allowed; }
+.thread, .reply { border:2px solid #0ff; padding:10px; margin-bottom:10px; background:#111; border-radius:5px; box-shadow:0 0 8px #0ff; }
+.thread { cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.reply { margin-left:20px; border-color:#ff80ff; box-shadow:0 0 6px #ff80ff; }
+.delete-btn { color:#f44; cursor:pointer; font-size:10px; margin-left:10px; }
+.lucky { margin:10px 0; padding:10px; background:#222; border:2px dashed #0ff; border-radius:5px; box-shadow:0 0 5px #0ff; font-size:12px; }
+.welcome { font-size:12px; color:#0ff; text-align:center; margin-bottom:10px; }
+.loading { color:#ff0; text-align:center; padding:10px; }
+.error { color:#f44; text-align:center; padding:10px; }
+#threadView { display:none; }
+@media screen and (max-width:600px) {
+    body { font-size:10px; }
+    .container { width:92%; padding:10px; }
+    input, textarea, select, button { font-size:10px; padding:8px; }
+    header { font-size:14px; }
+    .welcome { font-size:10px; }
+}
+</style>
+</head>
+<body>
+<header>PyJava_0515 掲示板</header>
+
+<div class="container" id="loginContainer">
+    <h3>ログイン</h3>
+    <input type="text" id="username" placeholder="ユーザー名">
+    <button onclick="login()">ログイン</button>
+</div>
+
+<div class="container" id="mainContainer" style="display:none">
+    <div class="welcome">ようこそ、<span id="currentUser"></span> さん！</div>
+
+    <div>
+        <h3>占い</h3>
+        <select id="zodiac">
+            <option value="">選択してください</option>
+            <option value="おうし座">おうし座</option>
+            <option value="ふたご座">ふたご座</option>
+            <option value="かに座">かに座</option>
+            <option value="しし座">しし座</option>
+            <option value="おとめ座">おとめ座</option>
+            <option value="てんびん座">てんびん座</option>
+            <option value="さそり座">さそり座</option>
+            <option value="いて座">いて座</option>
+            <option value="やぎ座">やぎ座</option>
+            <option value="みずがめ座">みずがめ座</option>
+            <option value="うお座">うお座</option>
+        </select>
+        <button onclick="showFortune()">占う</button>
+        <div class="lucky" id="fortune"></div>
+    </div>
+
+    <h3>スレッド一覧</h3>
+    <input type="text" id="title" placeholder="スレッドタイトル">
+    <textarea id="threadContent" placeholder="本文を入力してください"></textarea>
+    <button onclick="createThread()">新規スレッド作成</button>
+    <div class="loading" id="loadingThreads">読み込み中...</div>
+    <div id="threads"></div>
+
+    <div id="threadView">
+        <button onclick="backToList()">← スレッド一覧へ戻る</button>
+        <h3 id="threadTitle"></h3>
+        <p id="threadContentDisplay"></p>
+        <div class="loading" id="loadingReplies">返信読み込み中...</div>
+        <div id="replies"></div>
+        <textarea id="replyContent" placeholder="返信内容"></textarea>
+        <button onclick="addReply()">返信する</button>
+    </div>
+
+    <button onclick="resetAll()" style="background:#f44;margin-top:10px;">全データを消す</button>
+    <button onclick="logout()" style="background:red;margin-top:10px;">ログアウト</button>
+</div>
+
+<script>
+    let threads = [];
+    let replies = [];
+    let currentThreadId = null;
+    let currentUser = null;
+    const adminUser = 'yoda';
+
+    const colorCssMap = {
+        "レッド":"red","グリーン":"lime","イエロー":"yellow","ブルー":"deepskyblue",
+        "オレンジ":"orange","パープル":"violet","ピンク":"hotpink","ブラック":"black",
+        "ゴールド":"gold","シルバー":"silver","ブラウン":"brown","ホワイト":"white"
+    };
+    const fortunes = [
+        "「幸せは、活動の中にある。」 — アリストテレス",
+        "「小さなことを大きな愛で行いなさい。」 — マザー・テレサ",
+        "「どれほどゆっくり進もうとも、止まりさえしなければ問題ではない。」 — 孔子",
+        "「幸せは準備が整った心に訪れる。」 — ダライ・ラマ",
+        "「行動は言葉よりも力を持つ。」 — ニーチェ",
+        "「過去に縛られず、今を生きよ。」 — 孔子",
+        "「幸せは、見つけるものではなく作るもの。」 — アリストテレス",
+        "「答えは外にではなく、心の中にある。」 — デカルト",
+        "「一歩踏み出す勇気が、世界を変える。」 — カント",
+        "「心の平穏は、思考の整理から。」 — スピノザ",
+        "「人生は自分で描くものだ。」 — エマーソン",
+        "「簡素に生きよ、そうすれば幸福も近くなる。」 — ソロー"
+    ];
+
+    // エラー表示用の関数を追加
+    function showError(message, containerId = 'threads') {
+        const container = document.getElementById(containerId);
+        container.innerHTML = `<div class="error">${message}</div>`;
+    }
+
+    async function loadData() {
+        try {
+            const threadResponse = await fetch('/api/threads');
+            if (!threadResponse.ok) {
+                throw new Error(`スレッドの取得に失敗: ${threadResponse.status}`);
+            }
+            threads = await threadResponse.json();
+            
+            const replyResponse = await fetch('/api/replies');
+            if (!replyResponse.ok) {
+                throw new Error(`返信の取得に失敗: ${replyResponse.status}`);
+            }
+            replies = await replyResponse.json();
+            
+            renderThreads();
+            if (currentThreadId) {
+                renderReplies();
+            }
+        } catch (error) {
+            console.error('データの取得エラー:', error);
+            showError('データの読み込みに失敗しました。');
+        }
+    }
+
+    async function createThread() {
+        const title = document.getElementById('title').value.trim();
+        const content = document.getElementById('threadContent').value.trim();
+        if (!title || !content) return alert('タイトルと本文を入力してください');
+        
+        try {
+            const response = await fetch('/api/threads', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content, user: currentUser })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`スレッド作成に失敗: ${response.status}`);
+            }
+            
+            document.getElementById('title').value = '';
+            document.getElementById('threadContent').value = '';
+            alert('スレッドを作成しました！');
+            loadData();
+        } catch (error) {
+            console.error('スレッド作成エラー:', error);
+            alert('スレッド作成に失敗しました');
+        }
+    }
+
+    async function deleteThread(threadId, threadUser) {
+        if (threadUser !== currentUser && currentUser !== adminUser) {
+            return alert('権限がありません');
+        }
+        if (!confirm('このスレッドを本当に削除しますか？')) return;
+        
+        try {
+            const response = await fetch('/api/threads', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ threadId })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`削除に失敗: ${response.status}`);
+            }
+            
+            alert('スレッドを削除しました');
+            loadData();
+        } catch (error) {
+            console.error('削除エラー:', error);
+            alert('削除に失敗しました');
+        }
+    }
+
+    function renderThreads() {
+        const container = document.getElementById('threads');
+        const loadingEl = document.getElementById('loadingThreads');
+        loadingEl.style.display = 'none';
+        container.innerHTML = '';
+        
+        if (!Array.isArray(threads) || threads.length === 0) {
+            container.innerHTML = '<p>スレッドはまだありません。</p>';
+            return;
+        }
+        
+        threads.forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'thread';
+            div.innerHTML = `
+                <span><strong>${escapeHtml(t.title)}</strong> — ${escapeHtml(t.user)}</span>
+                ${(t.user === currentUser || currentUser === adminUser) ? 
+                    `<span class="delete-btn" onclick="deleteThread('${t.id}', '${t.user}')">[削除]</span>` : ''}
+            `;
+            div.onclick = (e) => {
+                if (e.target.classList.contains('delete-btn')) return;
+                openThread(t.id, t.title, t.content);
+            };
+            container.appendChild(div);
+        });
+    }
+
+    function openThread(threadId, title, content) {
+        currentThreadId = threadId;
+        document.getElementById('threadTitle').textContent = title;
+        document.getElementById('threadContentDisplay').textContent = content;
+        document.getElementById('threadView').style.display = 'block';
+        document.getElementById('threads').style.display = 'none';
+        renderReplies();
+    }
+
+    function backToList() {
+        document.getElementById('threadView').style.display = 'none';
+        document.getElementById('threads').style.display = 'block';
+        currentThreadId = null;
+        renderThreads();
+    }
+
+    async function addReply() {
+        const input = document.getElementById('replyContent');
+        const text = input.value.trim();
+        if (!text) return alert('返信内容を入力してください');
+        
+        try {
+            const response = await fetch('/api/replies', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ threadId: currentThreadId, content: text, user: currentUser })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`返信に失敗: ${response.status}`);
+            }
+            
+            input.value = '';
+            alert('返信しました！');
+            loadData();
+        } catch (error) {
+            console.error('返信エラー:', error);
+            alert('返信に失敗しました');
+        }
+    }
+
+    async function deleteReply(replyId, replyUser) {
+        if (replyUser !== currentUser && currentUser !== adminUser) {
+            return alert('権限がありません');
+        }
+        
+        try {
+            const response = await fetch('/api/replies', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ replyId })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`削除に失敗: ${response.status}`);
+            }
+            
+            alert('返信を削除しました');
+            loadData();
+        } catch (error) {
+            console.error('削除エラー:', error);
+            alert('削除に失敗しました');
+        }
+    }
+
+    function renderReplies() {
+        const container = document.getElementById('replies');
+        const loadingEl = document.getElementById('loadingReplies');
+        loadingEl.style.display = 'none';
+        container.innerHTML = '';
+        
+        if (!Array.isArray(replies)) {
+            return;
+        }
+        
+        // 返信データの形式を統一
+        const threadReplies = replies.filter(r => {
+            // 文字列の場合はパース、オブジェクトの場合はそのまま使用
+            const reply = typeof r === 'string' ? JSON.parse(r) : r;
+            return reply.threadId === currentThreadId;
+        });
+        
+        threadReplies.forEach(r => {
+            const reply = typeof r === 'string' ? JSON.parse(r) : r;
+            const div = document.createElement('div');
+            div.className = 'reply';
+            div.innerHTML = `<strong>${escapeHtml(reply.user)}</strong>: ${escapeHtml(reply.content)}
+                ${(reply.user === currentUser || currentUser === adminUser) ? 
+                    `<span class="delete-btn" onclick="deleteReply('${reply.id}', '${reply.user}')">[削除]</span>` : ''}`;
+            container.appendChild(div);
+        });
+    }
+
+    async function resetAll() {
+        if (!confirm('本当にすべてのデータを消去しますか？')) return;
+        if(currentUser !== adminUser) return alert('管理者のみ全削除可能です');
+        
+        try {
+            await Promise.all([
+                fetch('/api/threads', { 
+                    method: 'DELETE', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ threadId: 'all' }) 
+                }),
+                fetch('/api/replies', { 
+                    method: 'DELETE', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ replyId: 'all' }) 
+                })
+            ]);
+            alert('すべてのデータを消去しました！');
+            loadData();
+        } catch (error) {
+            console.error('削除エラー:', error);
+            alert('削除に失敗しました');
+        }
+    }
+
+    function showFortune() {
+        const zodiac = document.getElementById('zodiac').value;
+        if (!zodiac) return alert('星座を選んでください');
+        const colors = Object.keys(colorCssMap);
+        const luckyColor = colors[Math.floor(Math.random() * colors.length)];
+        const fortune = fortunes[Math.floor(Math.random() * fortunes.length)];
+        document.getElementById('fortune').innerHTML =
+            `${zodiac} の今日のラッキーカラー: <span style="color:${colorCssMap[luckyColor]};font-weight:bold;">${luckyColor}</span><br>${fortune}`;
+    };
+
+    function login() {
+        let name = document.getElementById('username').value.trim();
+        if(!name) name="名無し";
+        currentUser = name;
+        document.getElementById('currentUser').textContent = currentUser;
+        document.getElementById('loginContainer').style.display='none';
+        document.getElementById('mainContainer').style.display='block';
+        loadData();
+    };
+
+    function logout() {
+        currentUser = null;
+        document.getElementById('loginContainer').style.display='block';
+        document.getElementById('mainContainer').style.display='none';
+    };
+
+    // XSS対策用のエスケープ関数を追加
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+</body>
+</html>
