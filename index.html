@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PyJava_0515 掲示板</title>
+<title>PyJava_0515 掲示板 (デバッグ版)</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -24,6 +24,8 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
 .welcome { font-size:12px; color:#0ff; text-align:center; margin-bottom:10px; }
 .loading { color:#ff0; text-align:center; padding:10px; }
 .error { color:#f44; text-align:center; padding:10px; }
+.debug { background:#003300; color:#0f0; padding:10px; margin:10px 0; font-size:8px; border:1px solid #0f0; border-radius:3px; max-height:200px; overflow-y:auto; }
+.status { background:#000033; color:#00ffff; padding:5px; margin:5px 0; font-size:10px; border:1px solid #00ffff; }
 #threadView { display:none; }
 @media screen and (max-width:600px) {
     body { font-size:10px; }
@@ -35,7 +37,7 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
 </style>
 </head>
 <body>
-<header>PyJava_0515 掲示板</header>
+<header>PyJava_0515 掲示板 (デバッグ版)</header>
 
 <div class="container" id="loginContainer">
     <h3>ログイン</h3>
@@ -45,6 +47,12 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
 
 <div class="container" id="mainContainer" style="display:none">
     <div class="welcome">ようこそ、<span id="currentUser"></span> さん！</div>
+    
+    <!-- デバッグ情報表示エリア -->
+    <div class="status" id="statusInfo">システム状態: 初期化中...</div>
+    <div class="debug" id="debugLog">デバッグログ:<br></div>
+    <button onclick="clearDebugLog()" style="background:#333; font-size:8px; padding:3px;">ログクリア</button>
+    <button onclick="testAPI()" style="background:#660066; font-size:8px; padding:3px;">API接続テスト</button>
 
     <div>
         <h3>占い</h3>
@@ -114,60 +122,200 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         "「簡素に生きよ、そうすれば幸福も近くなる。」 — ソロー"
     ];
 
-    // エラー表示用の関数を追加
+    // デバッグ用の関数
+    function debugLog(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logMessage = `[${timestamp}] ${message}`;
+        console.log(logMessage);
+        const debugEl = document.getElementById('debugLog');
+        debugEl.innerHTML += `<br>${logMessage}`;
+        debugEl.scrollTop = debugEl.scrollHeight;
+    }
+
+    function updateStatus(message) {
+        document.getElementById('statusInfo').textContent = `システム状態: ${message}`;
+    }
+
+    function clearDebugLog() {
+        document.getElementById('debugLog').innerHTML = 'デバッグログ:<br>';
+    }
+
+    // API接続テスト
+    async function testAPI() {
+        debugLog('=== API接続テスト開始 ===');
+        updateStatus('API接続テスト中...');
+        
+        try {
+            // GETテスト
+            debugLog('GET /api/threads テスト開始');
+            const getResponse = await fetch('/api/threads');
+            debugLog(`GET レスポンス: ${getResponse.status} ${getResponse.statusText}`);
+            
+            if (getResponse.ok) {
+                const data = await getResponse.json();
+                debugLog(`GET 成功: ${JSON.stringify(data)}`);
+            } else {
+                const errorText = await getResponse.text();
+                debugLog(`GET エラー: ${errorText}`);
+            }
+            
+            // POSTテスト
+            debugLog('POST /api/threads テスト開始');
+            const testData = {
+                title: 'テストスレッド',
+                content: 'API接続テストです',
+                user: 'テストユーザー'
+            };
+            debugLog(`POSTデータ: ${JSON.stringify(testData)}`);
+            
+            const postResponse = await fetch('/api/threads', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(testData)
+            });
+            
+            debugLog(`POST レスポンス: ${postResponse.status} ${postResponse.statusText}`);
+            
+            if (postResponse.ok) {
+                const result = await postResponse.json();
+                debugLog(`POST 成功: ${JSON.stringify(result)}`);
+                updateStatus('API接続テスト成功');
+            } else {
+                const errorText = await postResponse.text();
+                debugLog(`POST エラー: ${errorText}`);
+                updateStatus('API接続テスト失敗');
+            }
+            
+        } catch (error) {
+            debugLog(`API接続テストエラー: ${error.message}`);
+            updateStatus('API接続エラー');
+        }
+        
+        debugLog('=== API接続テスト終了 ===');
+    }
+
+    // エラー表示用の関数
     function showError(message, containerId = 'threads') {
         const container = document.getElementById(containerId);
         container.innerHTML = `<div class="error">${message}</div>`;
+        debugLog(`エラー表示: ${message}`);
     }
 
     async function loadData() {
+        debugLog('データ読み込み開始');
+        updateStatus('データ読み込み中...');
+        
         try {
+            debugLog('スレッド取得開始...');
             const threadResponse = await fetch('/api/threads');
-            if (!threadResponse.ok) {
-                throw new Error(`スレッドの取得に失敗: ${threadResponse.status}`);
-            }
-            threads = await threadResponse.json();
+            debugLog(`スレッドレスポンス: ${threadResponse.status} ${threadResponse.statusText}`);
+            debugLog(`レスポンスURL: ${threadResponse.url}`);
             
-            const replyResponse = await fetch('/api/replies');
-            if (!replyResponse.ok) {
-                throw new Error(`返信の取得に失敗: ${replyResponse.status}`);
+            if (!threadResponse.ok) {
+                const errorText = await threadResponse.text();
+                debugLog(`スレッドエラー詳細: ${errorText}`);
+                throw new Error(`スレッドの取得に失敗: ${threadResponse.status} - ${errorText}`);
             }
+            
+            threads = await threadResponse.json();
+            debugLog(`取得したスレッド数: ${threads.length}`);
+            debugLog(`スレッドデータ: ${JSON.stringify(threads)}`);
+            
+            debugLog('返信取得開始...');
+            const replyResponse = await fetch('/api/replies');
+            debugLog(`返信レスポンス: ${replyResponse.status} ${replyResponse.statusText}`);
+            
+            if (!replyResponse.ok) {
+                const errorText = await replyResponse.text();
+                debugLog(`返信エラー詳細: ${errorText}`);
+                throw new Error(`返信の取得に失敗: ${replyResponse.status} - ${errorText}`);
+            }
+            
             replies = await replyResponse.json();
+            debugLog(`取得した返信数: ${replies.length}`);
             
             renderThreads();
             if (currentThreadId) {
                 renderReplies();
             }
+            
+            updateStatus('データ読み込み完了');
+            debugLog('データ読み込み完了');
+            
         } catch (error) {
             console.error('データの取得エラー:', error);
-            showError('データの読み込みに失敗しました。');
+            debugLog(`データ取得エラー: ${error.message}`);
+            showError(`データの読み込みに失敗しました: ${error.message}`);
+            updateStatus('データ読み込み失敗');
         }
     }
 
     async function createThread() {
         const title = document.getElementById('title').value.trim();
         const content = document.getElementById('threadContent').value.trim();
-        if (!title || !content) return alert('タイトルと本文を入力してください');
+        
+        debugLog('=== スレッド作成開始 ===');
+        debugLog(`タイトル: "${title}"`);
+        debugLog(`内容: "${content}"`);
+        debugLog(`ユーザー: "${currentUser}"`);
+        
+        if (!title || !content) {
+            debugLog('バリデーションエラー: タイトルまたは内容が空');
+            return alert('タイトルと本文を入力してください');
+        }
+        
+        const requestData = { title, content, user: currentUser };
+        debugLog(`リクエストデータ: ${JSON.stringify(requestData)}`);
+        
+        updateStatus('スレッド作成中...');
         
         try {
+            debugLog('POSTリクエスト送信開始');
             const response = await fetch('/api/threads', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, content, user: currentUser })
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(requestData)
             });
             
+            debugLog(`レスポンス: ${response.status} ${response.statusText}`);
+            debugLog(`レスポンスヘッダー: ${JSON.stringify([...response.headers.entries()])}`);
+            
+            const responseText = await response.text();
+            debugLog(`レスポンス内容: ${responseText}`);
+            
             if (!response.ok) {
-                throw new Error(`スレッド作成に失敗: ${response.status}`);
+                debugLog(`リクエスト失敗: ${response.status}`);
+                throw new Error(`スレッド作成に失敗: ${response.status} - ${responseText}`);
+            }
+            
+            let result;
+            try {
+                result = JSON.parse(responseText);
+                debugLog(`作成成功: ${JSON.stringify(result)}`);
+            } catch (parseError) {
+                debugLog(`JSONパースエラー: ${parseError.message}`);
+                throw new Error('サーバーからの応答が不正です');
             }
             
             document.getElementById('title').value = '';
             document.getElementById('threadContent').value = '';
+            updateStatus('スレッド作成完了');
+            debugLog('スレッド作成完了 - データ再読み込み開始');
+            
             alert('スレッドを作成しました！');
-            loadData();
+            await loadData();
+            
         } catch (error) {
             console.error('スレッド作成エラー:', error);
-            alert('スレッド作成に失敗しました');
+            debugLog(`スレッド作成エラー: ${error.message}`);
+            updateStatus('スレッド作成失敗');
+            alert(`スレッド作成に失敗しました: ${error.message}`);
         }
+        
+        debugLog('=== スレッド作成終了 ===');
     }
 
     async function deleteThread(threadId, threadUser) {
@@ -176,12 +324,16 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         }
         if (!confirm('このスレッドを本当に削除しますか？')) return;
         
+        debugLog(`スレッド削除開始: ${threadId}`);
+        
         try {
             const response = await fetch('/api/threads', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ threadId })
             });
+            
+            debugLog(`削除レスポンス: ${response.status}`);
             
             if (!response.ok) {
                 throw new Error(`削除に失敗: ${response.status}`);
@@ -191,6 +343,7 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
             loadData();
         } catch (error) {
             console.error('削除エラー:', error);
+            debugLog(`削除エラー: ${error.message}`);
             alert('削除に失敗しました');
         }
     }
@@ -201,12 +354,16 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         loadingEl.style.display = 'none';
         container.innerHTML = '';
         
+        debugLog(`スレッド表示開始: ${threads.length}件`);
+        
         if (!Array.isArray(threads) || threads.length === 0) {
             container.innerHTML = '<p>スレッドはまだありません。</p>';
+            debugLog('スレッドなし');
             return;
         }
         
-        threads.forEach(t => {
+        threads.forEach((t, index) => {
+            debugLog(`スレッド${index}: ${JSON.stringify(t)}`);
             const div = document.createElement('div');
             div.className = 'thread';
             div.innerHTML = `
@@ -220,6 +377,8 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
             };
             container.appendChild(div);
         });
+        
+        debugLog('スレッド表示完了');
     }
 
     function openThread(threadId, title, content) {
@@ -243,12 +402,16 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         const text = input.value.trim();
         if (!text) return alert('返信内容を入力してください');
         
+        debugLog(`返信作成開始: スレッドID=${currentThreadId}, 内容="${text}"`);
+        
         try {
             const response = await fetch('/api/replies', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ threadId: currentThreadId, content: text, user: currentUser })
             });
+            
+            debugLog(`返信レスポンス: ${response.status}`);
             
             if (!response.ok) {
                 throw new Error(`返信に失敗: ${response.status}`);
@@ -259,6 +422,7 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
             loadData();
         } catch (error) {
             console.error('返信エラー:', error);
+            debugLog(`返信エラー: ${error.message}`);
             alert('返信に失敗しました');
         }
     }
@@ -297,9 +461,7 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
             return;
         }
         
-        // 返信データの形式を統一
         const threadReplies = replies.filter(r => {
-            // 文字列の場合はパース、オブジェクトの場合はそのまま使用
             const reply = typeof r === 'string' ? JSON.parse(r) : r;
             return reply.threadId === currentThreadId;
         });
@@ -354,9 +516,11 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         let name = document.getElementById('username').value.trim();
         if(!name) name="名無し";
         currentUser = name;
+        debugLog(`ユーザーログイン: ${currentUser}`);
         document.getElementById('currentUser').textContent = currentUser;
         document.getElementById('loginContainer').style.display='none';
         document.getElementById('mainContainer').style.display='block';
+        updateStatus('ログイン完了');
         loadData();
     };
 
@@ -364,14 +528,20 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         currentUser = null;
         document.getElementById('loginContainer').style.display='block';
         document.getElementById('mainContainer').style.display='none';
+        updateStatus('ログアウト');
     };
 
-    // XSS対策用のエスケープ関数を追加
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // ページ読み込み時の初期化
+    window.addEventListener('load', () => {
+        debugLog('ページ読み込み完了');
+        updateStatus('初期化完了');
+    });
 </script>
 </body>
 </html>
