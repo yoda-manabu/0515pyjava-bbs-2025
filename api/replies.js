@@ -1,34 +1,49 @@
 import { kv } from '@vercel/kv';
 
-export default async function handler(req, res) {
+export default async function handler(request, response) {
   // CORS対応
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (request.method === 'OPTIONS') {
+    return response.status(200).end();
   }
-
-  const method = req.method;
-  console.log(`[${method}] /api/replies`);
+  
+  const method = request.method;
+  console.log(`[${method}] /api/replies - Body:`, request.body);
   
   try {
     if (method === 'GET') {
-      console.log('Getting replies from KV...');
-      const replies = await kv.lrange('replies', 0, -1) || [];
+      const replies = await kv.lrange('replies', 0, -1);
       console.log(`Retrieved ${replies.length} replies`);
       
-      return res.status(200).json(replies);
+      // データの形式を統一して処理
+      const parsedReplies = replies.map(reply => {
+        try {
+          // 既にオブジェクトの場合はそのまま、文字列の場合はパースする
+          return typeof reply === 'string' ? JSON.parse(reply) : reply;
+        } catch (error) {
+          console.error('Reply parse error:', error, 'Reply data:', reply);
+          return null;
+        }
+      }).filter(reply => reply !== null);
+      
+      return response.status(200).json(parsedReplies);
       
     } else if (method === 'POST') {
-      console.log('Creating new reply...');
-      const { threadId, content, user } = req.body;
-      console.log('Request body:', { threadId, content, user });
+      let body;
+      if (typeof request.body === 'string') {
+        body = JSON.parse(request.body);
+      } else {
+        body = request.body;
+      }
+      
+      const { threadId, content, user } = body;
+      console.log('Parsed body:', { threadId, content, user });
       
       if (!threadId || !content) {
-        console.log('Validation error: missing threadId or content');
-        return res.status(400).json({ error: 'スレッドIDと内容は必須です' });
+        return response.status(400).json({ error: 'スレッドIDと内容は必須です' });
       }
       
       const newReply = { 
@@ -39,50 +54,56 @@ export default async function handler(req, res) {
         timestamp: Date.now() 
       };
       
-      console.log('Saving reply:', newReply);
+      console.log('Creating reply:', newReply);
+      
       await kv.lpush('replies', JSON.stringify(newReply));
       console.log('Reply saved successfully');
       
-      return res.status(201).json(newReply);
+      return response.status(200).json(newReply);
       
     } else if (method === 'DELETE') {
-      console.log('Deleting reply...');
-      const { replyId } = req.body;
-      console.log('Reply ID to delete:', replyId);
+      let body;
+      if (typeof request.body === 'string') {
+        body = JSON.parse(request.body);
+      } else {
+        body = request.body;
+      }
+      
+      const { replyId } = body;
+      console.log('Deleting reply:', replyId);
       
       if (replyId === 'all') {
         await kv.del('replies');
-        console.log('All replies deleted');
-        return res.status(200).json({ message: '全返信を削除しました' });
+        return response.status(200).json({ message: '全返信を削除しました' });
       }
       
-      let replies = await kv.lrange('replies', 0, -1) || [];
+      // 個別削除の場合
+      const replies = await kv.lrange('replies', 0, -1);
       const filteredReplies = replies.filter(reply => {
-        const parsed = JSON.parse(reply);
-        return parsed.id !== replyId;
+        try {
+          const parsed = typeof reply === 'string' ? JSON.parse(reply) : reply;
+          return parsed.id !== replyId;
+        } catch (error) {
+          console.error('Error parsing reply for deletion:', error);
+          return false;
+        }
       });
       
-      if (replies.length === filteredReplies.length) {
-        return res.status(404).json({ error: '返信が見つかりません' });
-      }
-      
+      // 一度全削除してから再追加
       await kv.del('replies');
-      if (filteredReplies.length > 0) {
-        for (const reply of filteredReplies) {
-          await kv.rpush('replies', reply);
-        }
+      for (const reply of filteredReplies.reverse()) {
+        await kv.lpush('replies', typeof reply === 'string' ? reply : JSON.stringify(reply));
       }
       
-      console.log('Reply deleted successfully');
-      return res.status(200).json({ message: '返信を削除しました' });
+      return response.status(200).json({ message: '返信を削除しました' });
       
     } else {
-      res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
-      return res.status(405).json({ error: `Method ${method} Not Allowed` });
+      response.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+      return response.status(405).end(`Method ${method} Not Allowed`);
     }
   } catch (error) {
     console.error('Replies API Error:', error);
-    return res.status(500).json({ 
+    return response.status(500).json({ 
       error: 'サーバーエラーが発生しました',
       details: error.message 
     });
