@@ -100,21 +100,21 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         "ゴールド":"gold","シルバー":"silver","ブラウン":"brown","ホワイト":"white"
     };
     const fortunes = [
-        "「幸せは、活動の中にある。」 — アリストテレス",
-        "「小さなことを大きな愛で行いなさい。」 — マザー・テレサ",
-        "「どれほどゆっくり進もうとも、止まりさえしなければ問題ではない。」 — 孔子",
-        "「幸せは準備が整った心に訪れる。」 — ダライ・ラマ",
-        "「行動は言葉よりも力を持つ。」 — ニーチェ",
-        "「過去に縛られず、今を生きよ。」 — 孔子",
-        "「幸せは、見つけるものではなく作るもの。」 — アリストテレス",
-        "「答えは外にではなく、心の中にある。」 — デカルト",
-        "「一歩踏み出す勇気が、世界を変える。」 — カント",
-        "「心の平穏は、思考の整理から。」 — スピノザ",
-        "「人生は自分で描くものだ。」 — エマーソン",
-        "「簡素に生きよ、そうすれば幸福も近くなる。」 — ソロー"
+        "「幸せは、活動の中にある。」 ― アリストテレス",
+        "「小さなことを大きな愛で行いなさい。」 ― マザー・テレサ",
+        "「どれほどゆっくり進もうとも、止まりさえしなければ問題ではない。」 ― 孔子",
+        "「幸せは準備が整った心に訪れる。」 ― ダライ・ラマ",
+        "「行動は言葉よりも力を持つ。」 ― ニーチェ",
+        "「過去に縛られず、今を生きよ。」 ― 孔子",
+        "「幸せは、見つけるものではなく作るもの。」 ― アリストテレス",
+        "「答えは外にではなく、心の中にある。」 ― デカルト",
+        "「一歩踏み出す勇気が、世界を変える。」 ― カント",
+        "「心の平穏は、思考の整理から。」 ― スピノザ",
+        "「人生は自分で描くものだ。」 ― エマーソン",
+        "「簡素に生きよ、そうすれば幸福も近くなる。」 ― ソロー"
     ];
 
-    // エラー表示用の関数を追加
+    // エラー表示用の関数を追加 
     function showError(message, containerId = 'threads') {
         const container = document.getElementById(containerId);
         container.innerHTML = `<div class="error">${message}</div>`;
@@ -122,6 +122,8 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
 
     async function loadData() {
         try {
+            document.getElementById('loadingThreads').style.display = 'block';
+            
             const threadResponse = await fetch('/api/threads');
             if (!threadResponse.ok) {
                 throw new Error(`スレッドの取得に失敗: ${threadResponse.status}`);
@@ -141,6 +143,8 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         } catch (error) {
             console.error('データの取得エラー:', error);
             showError('データの読み込みに失敗しました。');
+        } finally {
+            document.getElementById('loadingThreads').style.display = 'none';
         }
     }
 
@@ -197,8 +201,6 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
 
     function renderThreads() {
         const container = document.getElementById('threads');
-        const loadingEl = document.getElementById('loadingThreads');
-        loadingEl.style.display = 'none';
         container.innerHTML = '';
         
         if (!Array.isArray(threads) || threads.length === 0) {
@@ -297,15 +299,10 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
             return;
         }
         
-        // 返信データの形式を統一
-        const threadReplies = replies.filter(r => {
-            // 文字列の場合はパース、オブジェクトの場合はそのまま使用
-            const reply = typeof r === 'string' ? JSON.parse(r) : r;
-            return reply.threadId === currentThreadId;
-        });
+        // このスレッドの返信をフィルタリング
+        const threadReplies = replies.filter(r => r.threadId === currentThreadId);
         
-        threadReplies.forEach(r => {
-            const reply = typeof r === 'string' ? JSON.parse(r) : r;
+        threadReplies.forEach(reply => {
             const div = document.createElement('div');
             div.className = 'reply';
             div.innerHTML = `<strong>${escapeHtml(reply.user)}</strong>: ${escapeHtml(reply.content)}
@@ -366,7 +363,7 @@ button:disabled { background:#666; color:#333; cursor: not-allowed; }
         document.getElementById('mainContainer').style.display='none';
     };
 
-    // XSS対策用のエスケープ関数を追加
+    // XSS対策用のエスケープ関数を追加 
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
